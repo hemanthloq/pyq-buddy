@@ -1,0 +1,162 @@
+/* ------------------------------------------------------------------
+   Design tokens - two real academic materials, not inverted palettes.
+   Light = "Answer Booklet" (ruled exam paper + red pen)
+   Dark  = "Chalkboard" (chalk on slate)
+------------------------------------------------------------------ */
+
+:root {
+  --bg: #EDF1F2;
+  --bg-line: #C9D3D6;
+  --text: #1F2937;
+  --text-muted: #5B6B75;
+  --accent: #B8433C;
+  --accent-tint: rgba(184, 67, 60, 0.09);
+  --mark: #F3D879;
+  --surface: #F5F8F9;
+
+  --body-tracking: 0;
+  --font-weight-body: 400;
+  --font-smoothing: auto;
+
+  --font-display: 'Fraunces', 'Iowan Old Style', serif;
+  --font-body: 'Inter', 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Consolas', monospace;
+
+  --radius: 3px;
+  --shadow-card: 2px 3px 0 var(--bg-line);
+  --ring-color: var(--accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1B2420;
+    --bg-line: #2E3A34;
+    --text: #EDEDE3;
+    --text-muted: #93A398;
+    --accent: #E8D9A8;
+    --accent-tint: rgba(232, 217, 168, 0.09);
+    --mark: #4A5D45;
+    --surface: #202B26;
+
+    --body-tracking: 0.012em;
+    --font-weight-body: 400;
+    --font-smoothing: antialiased;
+    --shadow-card: 0 0 0 1px var(--bg-line);
+  }
+}
+
+:root[data-theme="light"] {
+  --bg: #EDF1F2;
+  --bg-line: #C9D3D6;
+  --text: #1F2937;
+  --text-muted: #5B6B75;
+  --accent: #B8433C;
+  --accent-tint: rgba(184, 67, 60, 0.09);
+  --mark: #F3D879;
+  --surface: #F5F8F9;
+
+  --body-tracking: 0;
+  --font-weight-body: 400;
+  --font-smoothing: auto;
+  --shadow-card: 2px 3px 0 var(--bg-line);
+}
+
+:root[data-theme="dark"] {
+  --bg: #1B2420;
+  --bg-line: #2E3A34;
+  --text: #EDEDE3;
+  --text-muted: #93A398;
+  --accent: #E8D9A8;
+  --accent-tint: rgba(232, 217, 168, 0.09);
+  --mark: #4A5D45;
+  --surface: #202B26;
+
+  --body-tracking: 0.012em;
+  --font-weight-body: 400;
+  --font-smoothing: antialiased;
+  --shadow-card: 0 0 0 1px var(--bg-line);
+}
+
+/* ------------------------------------------------------------------
+   Reset
+------------------------------------------------------------------ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 31px,
+    var(--bg-line) 31px,
+    var(--bg-line) 32px
+  );
+  color: var(--text);
+  font-family: var(--font-body);
+  font-weight: var(--font-weight-body);
+  letter-spacing: var(--body-tracking);
+  -webkit-font-smoothing: var(--font-smoothing);
+  transition: background-color 0.2s ease, color 0.2s ease;
+  min-height: 100vh;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+button, input {
+  font-family: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* ------------------------------------------------------------------
+   Focus visibility - every interactive element gets a clear ring
+------------------------------------------------------------------ */
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--ring-color);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+/* ------------------------------------------------------------------
+   Reduced motion - respected globally
+------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

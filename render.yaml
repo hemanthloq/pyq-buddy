@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: pyqbuddy-backend
+    runtime: python
+    plan: free
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: ALLOWED_ORIGIN
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+
+  - type: web
+    name: pyqbuddy-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false
