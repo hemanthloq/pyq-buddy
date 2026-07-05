@@ -3,14 +3,23 @@ from sentence_transformers import SentenceTransformer, util
 import numpy as np
 import torch
 
-model = SentenceTransformer('all-MiniLM-L6-v2')
+_model = None
+
+
+def _get_model():
+    global _model
+    if _model is None:
+        _model = SentenceTransformer('all-MiniLM-L6-v2')
+    return _model
+
+
 question_vectors = np.load('question_vectors.npy')
 question_ids = np.load('question_ids.npy')
 questions = db.get_all_questions()
 
 
 def retrieve(query, k=5):
-    query_vector = model.encode(query)
+    query_vector = _get_model().encode(query)
     scores = util.cos_sim(query_vector, question_vectors)
     flat_scores = scores[0]
     top_k_indices = torch.argsort(flat_scores, descending=True)[:k]

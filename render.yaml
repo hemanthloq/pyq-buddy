@@ -15,7 +15,11 @@ services:
     runtime: python
     plan: free
     rootDir: .
-    buildCommand: pip install -r requirements.txt
+    # torch installed separately from the CPU-only wheel index first - the
+    # default PyPI Linux wheel bundles CUDA (~530MB) and blew past the free
+    # tier's 512MB memory cap; the CPU wheel is ~190MB and has zero nvidia-*
+    # dependencies. Confirmed against https://pytorch.org/get-started/locally/
+    buildCommand: pip install --index-url https://download.pytorch.org/whl/cpu torch && pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PORT

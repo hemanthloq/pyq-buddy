@@ -1,7 +1,11 @@
+# torch is intentionally NOT listed here - it's installed separately from
+# PyTorch's CPU-only wheel index (see render.yaml's buildCommand / README) to
+# avoid pulling the ~500MB CUDA-bundled default PyPI build. sentence-
+# transformers depends on torch but its version constraint is a loose range,
+# so it's satisfied by the already-installed CPU wheel without reinstalling.
 pdfplumber==0.11.10
 sentence-transformers==5.6.0
 numpy==2.5.0
-torch==2.12.1
 python-dotenv==1.2.1
 requests==2.32.5
 fastapi==0.138.0
