@@ -1,3 +1,14 @@
+# Render Blueprint - see https://render.com/docs/blueprint-spec
+#
+# ALLOWED_ORIGIN and VITE_API_URL are NOT wired with fromService. Render's
+# fromService only exposes a service's private-network host/port (checked
+# against the current Blueprint spec on 2026-07-05 - see
+# https://render.com/docs/blueprint-spec), and static sites aren't even a
+# valid fromService target. Both env vars below need the real public
+# https://*.onrender.com URL (the browser's CORS Origin header and its
+# fetch() target), which a private-network address can't provide. So:
+# after the first deploy, copy each service's actual Render URL from the
+# dashboard into the other service's env var below, then redeploy.
 services:
   - type: web
     name: pyqbuddy-backend
@@ -10,9 +21,9 @@ services:
       - key: PORT
         value: 10000
       - key: ALLOWED_ORIGIN
-        sync: false
+        sync: false # paste the frontend service's live URL here after first deploy
       - key: GROQ_API_KEY
-        sync: false
+        sync: false # prompted for during Blueprint creation, never stored here
 
   - type: web
     name: pyqbuddy-frontend
@@ -22,4 +33,4 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        sync: false
+        sync: false # paste the backend service's live URL here after first deploy
