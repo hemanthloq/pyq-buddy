@@ -31,6 +31,15 @@ export async function useSample(sessionId) {
   return data;
 }
 
+export async function removePaper(sessionId, examId) {
+  const res = await fetch(`/session/${sessionId}/papers/${examId}`, { method: 'DELETE' });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(data?.detail?.message || 'Could not remove that paper.');
+  }
+  return data;
+}
+
 // Fired on pagehide - sendBeacon only supports POST, so cleanup is a POST
 // endpoint rather than the more RESTful DELETE (also exposed on the backend
 // for manual/programmatic use). No body needed; session_id is in the URL.

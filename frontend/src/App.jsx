@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import './App.css';
-import { ask, endSession, getSessionScope } from './api';
+import { ask, endSession, getSessionScope, removePaper } from './api';
 import { getSessionId } from './session';
 import SearchScreen from './components/SearchScreen';
 import ThemeToggle from './components/ThemeToggle';
@@ -47,7 +47,7 @@ export default function App() {
   const refreshScope = useCallback(() => {
     getSessionScope(getSessionId())
       .then(setScope)
-      .catch(() => setScope({ exam_ids: [], question_count: 0 }));
+      .catch(() => setScope({ exam_ids: [], question_count: 0, papers: [] }));
   }, []);
 
   useEffect(() => {
@@ -92,6 +92,14 @@ export default function App() {
     setTab('search');
   }, [refreshScope]);
 
+  const handleRemovePaper = useCallback(
+    async (examId) => {
+      await removePaper(getSessionId(), examId);
+      refreshScope();
+    },
+    [refreshScope]
+  );
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -132,7 +140,11 @@ export default function App() {
               error={searchError}
             />
           ) : (
-            <UploadScreen onUploadSuccess={handleUploadSuccess} />
+            <UploadScreen
+              onUploadSuccess={handleUploadSuccess}
+              activePapers={scope?.papers ?? []}
+              onRemovePaper={handleRemovePaper}
+            />
           )}
         </div>
       </main>

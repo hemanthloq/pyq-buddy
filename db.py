@@ -281,6 +281,47 @@ def get_session_scope_exam_ids(session_id: str) -> list:
         conn.close()
 
 
+def get_session_scope_details(session_id: str) -> list:
+    """Per-exam detail (subject/month/year/question_count) for everything in
+    this session's scope - the "currently active papers" list. Ordered by
+    exam_id so newly added papers land at the end.
+    """
+    conn = _get_conn()
+    try:
+        rows = conn.execute(
+            """
+            SELECT Exams.exam_id, Exams.subject, Exams.month, Exams.year,
+                   COUNT(Questions.question_id) AS question_count
+            FROM SessionScope
+            JOIN Exams ON SessionScope.exam_id = Exams.exam_id
+            LEFT JOIN Questions ON Questions.exam_id = Exams.exam_id
+            WHERE SessionScope.session_id = ?
+            GROUP BY Exams.exam_id
+            ORDER BY Exams.exam_id
+            """,
+            (session_id,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def remove_session_scope_entry(session_id: str, exam_id: int) -> None:
+    """Remove a single (session_id, exam_id) scope pointer - e.g. a user
+    explicitly removing one paper from their active list, as opposed to
+    delete_session_scope's full teardown of every pointer a session has.
+    """
+    conn = _get_conn()
+    try:
+        conn.execute(
+            "DELETE FROM SessionScope WHERE session_id = ? AND exam_id = ?",
+            (session_id, exam_id)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def count_questions_for_exams(exam_ids: list) -> int:
     """Count of Questions belonging to any of the given exam_ids."""
     if not exam_ids:

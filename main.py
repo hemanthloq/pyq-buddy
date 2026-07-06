@@ -118,12 +118,17 @@ def get_stats():
 @app.get("/session/{session_id}/scope")
 def get_session_scope(session_id: str):
     """What this session can currently search - used by the frontend to
-    decide whether to show the search UI or the 'go upload' empty state,
-    since that's now per-session, not a global fact about the database.
+    decide whether to show the search UI or the 'go upload' empty state
+    (question_count), and to render the "currently active papers" list on
+    the Upload tab (papers). Both are per-session, not a global fact about
+    the database, and both need to survive tab switches, so the frontend
+    keeps this in lifted state rather than re-deriving it from a single
+    upload response.
     """
-    exam_ids = db.get_session_scope_exam_ids(session_id)
-    question_count = db.count_questions_for_exams(exam_ids)
-    return {"exam_ids": exam_ids, "question_count": question_count}
+    papers = db.get_session_scope_details(session_id)
+    exam_ids = [p["exam_id"] for p in papers]
+    question_count = sum(p["question_count"] for p in papers)
+    return {"exam_ids": exam_ids, "question_count": question_count, "papers": papers}
 
 
 @app.post("/session/{session_id}/use-sample")
@@ -245,6 +250,24 @@ def end_session(session_id: str):
 @app.delete("/session/{session_id}")
 def delete_session(session_id: str):
     return _delete_session_data(session_id)
+
+
+@app.delete("/session/{session_id}/papers/{exam_id}")
+def remove_paper(session_id: str, exam_id: int):
+    """Explicit user action ("Remove" on the active-papers list), as opposed
+    to _delete_session_data's full session teardown. Reuses the same
+    underlying delete logic: if this session owns the exam (a real upload),
+    it's fully deleted (rows + embeddings); if not (e.g. the shared baseline
+    sample), only this session's scope pointer to it goes - baseline itself
+    is never touched, same protection _delete_session_data already relies on.
+    """
+    owned_exam_ids = db.get_exam_ids_by_session(session_id)
+    if exam_id in owned_exam_ids:
+        removed_question_ids = db.delete_exams([exam_id])
+        retrieve_module.remove_questions(removed_question_ids)
+
+    db.remove_session_scope_entry(session_id, exam_id)
+    return {"removed_exam_id": exam_id}
 
 
 class AskRequest(BaseModel):

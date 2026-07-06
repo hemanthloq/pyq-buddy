@@ -553,56 +553,31 @@
   text-underline-offset: 2px;
 }
 
-.papers-list {
-  margin-top: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.paper-card {
-  background: var(--surface);
-  border: 1px solid var(--bg-line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
-  padding: 18px 20px;
-  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
 .paper-unparsed {
   color: var(--text-muted);
   font-size: 14px;
+  margin-top: 12px;
 }
 
-.paper-card-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+/* ------------------------------------------------------------------
+   Active papers - persisted (lifted to App.jsx) list of what's currently
+   contributing to this session's search scope, so it survives switching
+   away to Search and back, unlike the old per-upload local preview it
+   replaced.
+------------------------------------------------------------------ */
+
+.active-papers {
+  margin-top: 28px;
+}
+
+.active-papers-heading {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-muted);
   margin-bottom: 12px;
 }
 
-.paper-title {
-  font-size: 17px;
-  margin-right: auto;
-}
-
-.paper-date {
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.info-tag {
-  font-size: 11.5px;
-  color: var(--text-muted);
-  background: var(--bg);
-  border: 1px solid var(--bg-line);
-  padding: 3px 9px;
-  border-radius: 999px;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-
-.question-list {
+.active-papers-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -611,41 +586,66 @@
   gap: 10px;
 }
 
-.question-row {
+.active-paper-row {
   display: flex;
-  gap: 10px;
-  align-items: baseline;
-  font-size: 14px;
-  line-height: 1.5;
-  padding-top: 10px;
-  border-top: 1px solid var(--bg-line);
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--bg-line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 14px 16px;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.question-row:first-child {
-  padding-top: 0;
-  border-top: none;
-}
-
-.question-number {
-  color: var(--accent);
-  font-size: 12.5px;
-  flex-shrink: 0;
-}
-
-.question-text {
-  flex: 1;
+.active-paper-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   min-width: 0;
-  white-space: pre-line;
 }
 
-.question-marks {
-  flex-shrink: 0;
-  color: var(--text-muted);
+.active-paper-subject {
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active-paper-meta {
   font-size: 12px;
+  color: var(--text-muted);
+}
+
+.remove-paper-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1.5px solid var(--bg-line);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.remove-paper-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.remove-paper-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 @media (max-width: 520px) {
-  .question-row {
-    flex-wrap: wrap;
+  .active-paper-row {
+    align-items: flex-start;
+  }
+
+  .active-paper-subject {
+    white-space: normal;
   }
 }

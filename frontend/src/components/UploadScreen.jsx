@@ -12,22 +12,34 @@ const EXTRACTION_LOADING_PHRASES = [
   'Cross-checking the total…',
 ];
 
-export default function UploadScreen({ onUploadSuccess }) {
+export default function UploadScreen({ onUploadSuccess, activePapers = [], onRemovePaper }) {
   const [uploading, setUploading] = useState(false);
-  const [papers, setPapers] = useState(null);
   const [error, setError] = useState(null);
   const [fileName, setFileName] = useState(null);
+  const [unparsedNotice, setUnparsedNotice] = useState(null);
+  const [removingId, setRemovingId] = useState(null);
 
   const handleFile = async (file) => {
     if (!file) return;
     setFileName(file.name);
     setUploading(true);
     setError(null);
-    setPapers(null);
+    setUnparsedNotice(null);
 
     try {
       const data = await uploadPdf(file, getSessionId());
-      setPapers(data.papers);
+
+      const unparsedCount = data.papers.filter((p) =>
+        p.flags.includes('format_not_detected')
+      ).length;
+      if (unparsedCount > 0) {
+        setUnparsedNotice(
+          unparsedCount === 1
+            ? "Couldn't detect one paper's question format — skipped."
+            : `Couldn't detect ${unparsedCount} papers' question format — skipped.`
+        );
+      }
+
       const anySucceeded = data.papers.some((p) => !p.flags.includes('format_not_detected'));
       if (anySucceeded) {
         onUploadSuccess?.();
@@ -42,6 +54,7 @@ export default function UploadScreen({ onUploadSuccess }) {
   const handleUseSample = async () => {
     setUploading(true);
     setError(null);
+    setUnparsedNotice(null);
 
     try {
       await useSample(getSessionId());
@@ -50,6 +63,19 @@ export default function UploadScreen({ onUploadSuccess }) {
       setError(e.message);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleRemove = async (examId) => {
+    setRemovingId(examId);
+    setError(null);
+
+    try {
+      await onRemovePaper?.(examId);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -82,40 +108,35 @@ export default function UploadScreen({ onUploadSuccess }) {
 
       {uploading && <ChalkLoader phrases={EXTRACTION_LOADING_PHRASES} />}
       {error && <p className="error-note">{error}</p>}
+      {unparsedNotice && <p className="paper-unparsed">{unparsedNotice}</p>}
 
-      {papers && (
-        <div className="papers-list">
-          {papers.map((paper, i) => (
-            <div key={paper.exam_id ?? `unparsed-${i}`} className="paper-card">
-              {paper.flags.includes('format_not_detected') ? (
-                <p className="paper-unparsed">
-                  Couldn't detect this paper's question format — skipped.
-                </p>
-              ) : (
-                <>
-                  <div className="paper-card-header">
-                    <h3 className="paper-title">{paper.subject || 'Unknown subject'}</h3>
-                    {paper.flags.includes('month_year_unknown') ? (
-                      <span className="info-tag">month/year unknown</span>
-                    ) : (
-                      <span className="paper-date mono">
-                        {paper.month} {paper.year}
-                      </span>
-                    )}
-                  </div>
-                  <ul className="question-list">
-                    {paper.questions.map((q) => (
-                      <li key={q.question_id} className="question-row">
-                        <span className="question-number mono">{q.question_number}</span>
-                        <span className="question-text">{q.question_text}</span>
-                        <span className="question-marks mono">({q.marks} Marks)</span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
-          ))}
+      {activePapers.length > 0 && (
+        <div className="active-papers">
+          <h3 className="active-papers-heading">Currently active for this session</h3>
+          <ul className="active-papers-list">
+            {activePapers.map((paper) => (
+              <li key={paper.exam_id} className="active-paper-row">
+                <div className="active-paper-info">
+                  <span className="active-paper-subject">
+                    {paper.subject || 'Unknown subject'}
+                  </span>
+                  <span className="active-paper-meta mono">
+                    {paper.question_count} question{paper.question_count === 1 ? '' : 's'}
+                    {paper.month ? ` · ${paper.month} ${paper.year}` : ''}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="remove-paper-btn"
+                  onClick={() => handleRemove(paper.exam_id)}
+                  disabled={removingId === paper.exam_id}
+                  aria-label={`Remove ${paper.subject || 'this paper'} from your active search papers`}
+                >
+                  {removingId === paper.exam_id ? 'Removing…' : 'Remove'}
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
