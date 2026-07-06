@@ -1,5 +1,6 @@
 // GENERATED FILE - do not edit by hand.
-// Produced by scripts/generate-chalk-paths.mjs from scripts/fonts/Caveat.ttf.
+// Produced by scripts/generate-chalk-paths.mjs from the Caveat handwriting
+// font (fetched on demand, see FONT_URL in that script - not committed).
 // Re-run that script if a loading phrase is added, removed, or changed.
 
 export const CHALK_PATHS = {

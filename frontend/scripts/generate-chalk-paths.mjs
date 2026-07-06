@@ -6,17 +6,26 @@
 // ChalkLoader call sites), so this only needs to run once whenever a phrase
 // is added/changed - not per request, not in the browser.
 //
+// The font binary itself is neither committed nor shipped: it's only a
+// build-time input (never loaded by the app - the runtime imports the
+// generated path data below, not a font file), so it's fetched on demand
+// into a gitignored cache instead. HF Spaces' git server rejects committed
+// binaries outright (recommends LFS/Xet), and there's no reason to carry
+// this one in history when the only durable output that matters is the
+// generated path data.
+//
 // Run with: node scripts/generate-chalk-paths.mjs
 // Output:   src/chalkPaths.generated.js (committed, imported at runtime)
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import opentype from 'opentype.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const FONT_PATH = path.join(__dirname, 'fonts', 'Caveat.ttf');
+const FONT_URL = 'https://github.com/google/fonts/raw/main/ofl/caveat/Caveat%5Bwght%5D.ttf';
+const FONT_CACHE_PATH = path.join(__dirname, 'fonts', 'Caveat.ttf'); // gitignored - see frontend/.gitignore
 const OUTPUT_PATH = path.join(__dirname, '..', 'src', 'chalkPaths.generated.js');
 const FONT_SIZE = 64; // arbitrary generation-time resolution; SVG viewBox scaling makes the display size independent of this
 const DECIMALS = 0; // integer path coords: at this font size the rounding error is ~1% of letter height, invisible on a hand-drawn/wobbly typeface, and it roughly halves the committed data size
@@ -44,7 +53,24 @@ const PHRASES = [
   'Cross-checking the total…',
 ];
 
-const fontBuffer = readFileSync(FONT_PATH);
+async function getFontBuffer() {
+  if (existsSync(FONT_CACHE_PATH)) {
+    return readFileSync(FONT_CACHE_PATH);
+  }
+
+  console.log(`Fetching ${FONT_URL} ...`);
+  const response = await fetch(FONT_URL);
+  if (!response.ok) {
+    throw new Error(`Failed to download Caveat font: HTTP ${response.status}`);
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  mkdirSync(path.dirname(FONT_CACHE_PATH), { recursive: true });
+  writeFileSync(FONT_CACHE_PATH, buffer); // local cache only - gitignored, re-fetched on a clean checkout
+  return buffer;
+}
+
+const fontBuffer = await getFontBuffer();
 const arrayBuffer = fontBuffer.buffer.slice(
   fontBuffer.byteOffset,
   fontBuffer.byteOffset + fontBuffer.byteLength
@@ -108,7 +134,8 @@ const entries = PHRASES.map((phrase) => {
 });
 
 const banner = `// GENERATED FILE - do not edit by hand.
-// Produced by scripts/generate-chalk-paths.mjs from scripts/fonts/Caveat.ttf.
+// Produced by scripts/generate-chalk-paths.mjs from the Caveat handwriting
+// font (fetched on demand, see FONT_URL in that script - not committed).
 // Re-run that script if a loading phrase is added, removed, or changed.
 `;
 

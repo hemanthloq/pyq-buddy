@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Build-time-only asset cache: scripts/generate-chalk-paths.mjs downloads
+# this itself on demand, and only its generated output (src/chalkPaths.generated.js)
+# is committed - the font binary is never a runtime dependency.
+scripts/fonts/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
