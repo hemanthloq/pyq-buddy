@@ -116,23 +116,25 @@ export default function App() {
       </header>
 
       <main className="app-main">
-        {tab === 'search' ? (
-          <SearchScreen
-            hasData={scope ? scope.question_count > 0 : null}
-            onGoUpload={() => setTab('upload')}
-            input={searchInput}
-            onInputChange={setSearchInput}
-            onSubmit={runSearch}
-            activeQuery={activeQuery}
-            loading={searchLoading}
-            results={searchResults}
-            summary={summary}
-            summaryError={summaryError}
-            error={searchError}
-          />
-        ) : (
-          <UploadScreen onUploadSuccess={handleUploadSuccess} />
-        )}
+        <div className="tab-panel" key={tab}>
+          {tab === 'search' ? (
+            <SearchScreen
+              hasData={scope ? scope.question_count > 0 : null}
+              onGoUpload={() => setTab('upload')}
+              input={searchInput}
+              onInputChange={setSearchInput}
+              onSubmit={runSearch}
+              activeQuery={activeQuery}
+              loading={searchLoading}
+              results={searchResults}
+              summary={summary}
+              summaryError={summaryError}
+              error={searchError}
+            />
+          ) : (
+            <UploadScreen onUploadSuccess={handleUploadSuccess} />
+          )}
+        </div>
       </main>
     </div>
   );

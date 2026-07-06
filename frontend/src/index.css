@@ -24,6 +24,7 @@
 
   --radius: 3px;
   --shadow-card: 2px 3px 0 var(--bg-line);
+  --shadow-card-hover: 3px 5px 0 var(--bg-line);
   --ring-color: var(--accent);
 }
 
@@ -42,6 +43,7 @@
     --font-weight-body: 400;
     --font-smoothing: antialiased;
     --shadow-card: 0 0 0 1px var(--bg-line);
+    --shadow-card-hover: 0 0 0 1px var(--bg-line), 0 6px 18px rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -59,6 +61,7 @@
   --font-weight-body: 400;
   --font-smoothing: auto;
   --shadow-card: 2px 3px 0 var(--bg-line);
+  --shadow-card-hover: 3px 5px 0 var(--bg-line);
 }
 
 :root[data-theme="dark"] {
@@ -75,6 +78,7 @@
   --font-weight-body: 400;
   --font-smoothing: antialiased;
   --shadow-card: 0 0 0 1px var(--bg-line);
+  --shadow-card-hover: 0 0 0 1px var(--bg-line), 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
 /* ------------------------------------------------------------------
@@ -155,6 +159,7 @@ input:focus-visible,
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;

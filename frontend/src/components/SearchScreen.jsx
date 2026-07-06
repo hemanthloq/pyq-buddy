@@ -1,8 +1,10 @@
+import { useRef } from 'react';
 import ChalkLoader from './ChalkLoader';
 import ExampleChips from './ExampleChips';
 import GradeBadge from './GradeBadge';
 
 const LOW_CONFIDENCE_THRESHOLD = 0.25;
+const CHIP_TYPEWRITER_TOTAL_MS = 380;
 
 const SEARCH_LOADING_PHRASES = [
   'Chalking up an answer…',
@@ -26,14 +28,40 @@ export default function SearchScreen({
   summaryError,
   error,
 }) {
+  const typewriterToken = useRef(0);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit(input);
   };
 
+  // Echoes the loader's handwriting motif: the chip's text is "written"
+  // into the box rather than dropped in instantly, then the search runs.
   const handleChipPick = (example) => {
-    onInputChange(example);
-    onSubmit(example);
+    const token = ++typewriterToken.current;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (reduceMotion) {
+      onInputChange(example);
+      onSubmit(example);
+      return;
+    }
+
+    const stepMs = Math.max(12, CHIP_TYPEWRITER_TOTAL_MS / example.length);
+    let i = 0;
+
+    const tick = () => {
+      if (typewriterToken.current !== token) return; // superseded by a newer pick
+      i += 1;
+      onInputChange(example.slice(0, i));
+      if (i < example.length) {
+        setTimeout(tick, stepMs);
+      } else {
+        onSubmit(example);
+      }
+    };
+
+    tick();
   };
 
   if (hasData === null) {
@@ -61,14 +89,17 @@ export default function SearchScreen({
       <h2 className="search-heading">Find real exam questions on any topic.</h2>
 
       <form className="search-form" onSubmit={handleSubmit}>
-        <input
-          className="search-input"
-          type="text"
-          value={input}
-          onChange={(e) => onInputChange(e.target.value)}
-          placeholder="Ask it your way — we'll find where it's been asked before"
-          aria-label="Search past exam questions"
-        />
+        <div className="search-input-wrap">
+          <input
+            className="search-input"
+            type="text"
+            value={input}
+            onChange={(e) => onInputChange(e.target.value)}
+            placeholder="Ask it your way — we'll find where it's been asked before"
+            aria-label="Search past exam questions"
+          />
+          <span className="search-input-underline" aria-hidden="true" />
+        </div>
         <button type="submit" className="btn-primary" disabled={loading}>
           Search
         </button>
@@ -95,9 +126,13 @@ export default function SearchScreen({
             </p>
           ) : (
             <ul className="result-list">
-              {results.map((r) => (
-                <li key={r.question_id} className="result-card">
-                  <GradeBadge score={r.score} questionId={r.question_id} />
+              {results.map((r, i) => (
+                <li
+                  key={r.question_id}
+                  className="result-card"
+                  style={{ animationDelay: `${i * 70}ms` }}
+                >
+                  <GradeBadge score={r.score} questionId={r.question_id} delayMs={i * 70 + 200} />
                   <div className="result-body">
                     <div className="result-meta mono">
                       {r.question_number && <span>{r.question_number}</span>}
