@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 
@@ -7,6 +8,15 @@ DEFAULT_QUESTION_NUMBER_PATTERN = r'\d\.[a-z]\.'
 DEFAULT_MARKS_PATTERN = r'(\d+\.\d+) Marks'
 DEFAULT_CLEAN_PATTERN = r'\(\d+\.\d+ Marks\)'
 MIN_MATCHES_REQUIRED = 3
+
+# Keyed by a hash of the sample text sent to Groq, so re-uploading the exact
+# same file never asks the LLM twice: temperature=0 alone doesn't guarantee
+# bit-identical output run-to-run (batching/hardware nondeterminism is a
+# known LLM-serving caveat), but this discovered pattern controls how the
+# WHOLE document gets split into papers, so identical input must always
+# produce the identical split. Module-level, not persisted - fine, since the
+# worst case on a process restart is one extra Groq call per distinct file.
+_DISCOVERY_CACHE = {}
 
 
 def extract_questions_from_pdf(pdf_path):
@@ -115,6 +125,10 @@ def _matches_count(pattern, text):
 def _discover_patterns_via_groq(sample_text):
     from groq_client import call_groq
 
+    cache_key = hashlib.sha256(sample_text.encode("utf-8")).hexdigest()
+    if cache_key in _DISCOVERY_CACHE:
+        return _DISCOVERY_CACHE[cache_key]
+
     prompt = f"""A default question-numbering regex failed to find enough matches
 in an exam paper PDF. The default style is "1.a." (digit, dot, lowercase letter,
 dot - e.g. "4.d.") for question numbers, with marks annotated like
@@ -131,7 +145,16 @@ return ONLY a JSON object, Python `re`-compatible, in this exact shape:
 {{"question_number_pattern": "<regex as a string>", "marks_pattern": "<regex as a string, with a capturing group around the numeric marks value>"}}"""
 
     try:
-        content = call_groq(messages=[{"role": "user", "content": prompt}], json_mode=True)
+        # temperature=0: this discovers the regex used to split the WHOLE
+        # document into questions/papers, so it must be reproducible - any
+        # sampling variance here means identical input can produce a
+        # different discovered pattern (and therefore a different question
+        # count/paper split) on every re-upload of the same file.
+        content = call_groq(
+            messages=[{"role": "user", "content": prompt}],
+            json_mode=True,
+            temperature=0,
+        )
         data = json.loads(content)
         question_number_pattern = data["question_number_pattern"]
         marks_pattern = data["marks_pattern"]
@@ -144,4 +167,6 @@ return ONLY a JSON object, Python `re`-compatible, in this exact shape:
     if not question_number_pattern or not marks_pattern:
         return None
 
-    return question_number_pattern, marks_pattern
+    result = (question_number_pattern, marks_pattern)
+    _DISCOVERY_CACHE[cache_key] = result
+    return result

@@ -27,6 +27,7 @@ export default function SearchScreen({
   summary,
   summaryError,
   error,
+  activeSubjects,
 }) {
   const typewriterToken = useRef(0);
 
@@ -105,7 +106,7 @@ export default function SearchScreen({
         </button>
       </form>
 
-      {!hasSearched && <ExampleChips onPick={handleChipPick} />}
+      {!hasSearched && <ExampleChips onPick={handleChipPick} subjects={activeSubjects} />}
 
       {loading && <ChalkLoader phrases={SEARCH_LOADING_PHRASES} />}
 

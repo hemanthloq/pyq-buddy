@@ -138,6 +138,7 @@ export default function App() {
               summary={summary}
               summaryError={summaryError}
               error={searchError}
+              activeSubjects={[...new Set((scope?.papers ?? []).map((p) => p.subject).filter(Boolean))]}
             />
           ) : (
             <UploadScreen
