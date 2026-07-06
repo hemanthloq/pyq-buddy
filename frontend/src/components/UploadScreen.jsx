@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { uploadPdf } from '../api';
+import { getSessionId } from '../session';
 
 export default function UploadScreen({ onUploaded }) {
   const [uploading, setUploading] = useState(false);
@@ -15,7 +16,7 @@ export default function UploadScreen({ onUploaded }) {
     setPapers(null);
 
     try {
-      const data = await uploadPdf(file);
+      const data = await uploadPdf(file, getSessionId());
       setPapers(data.papers);
       onUploaded?.();
     } catch (e) {

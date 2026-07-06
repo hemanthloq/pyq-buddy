@@ -2,7 +2,9 @@ CREATE TABLE Exams(
    exam_id INTEGER PRIMARY KEY AUTOINCREMENT,
    subject TEXT NOT NULL,
    month TEXT,
-   year INTEGER
+   year INTEGER,
+   session_id TEXT,
+   created_at TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE Questions(

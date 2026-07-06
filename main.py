@@ -1,11 +1,11 @@
-import importlib
+import asyncio
 import os
-import subprocess
-import sys
 import tempfile
+import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -16,10 +16,35 @@ import seed
 from groq_client import GroqConfigError
 from summarize import generate_summary
 
-BASE_DIR = Path(__file__).parent
 ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "http://localhost:5173")
 
-app = FastAPI()
+STALE_SESSION_MINUTES = 60
+STALE_SWEEP_INTERVAL_SECONDS = 600  # 10 minutes
+
+
+async def _stale_session_sweep_loop():
+    """Backup cleanup for sessions whose sendBeacon never fired (hard crash,
+    task-killed tab, etc). Checks immediately on startup, then periodically.
+    Best-effort: a failed sweep is logged-and-skipped, never crashes the app.
+    """
+    while True:
+        try:
+            exam_ids = db.get_stale_session_exam_ids(STALE_SESSION_MINUTES)
+            removed_question_ids = db.delete_exams(exam_ids)
+            retrieve_module.remove_questions(removed_question_ids)
+        except Exception as e:
+            print(f"stale session sweep failed: {e}")
+        await asyncio.sleep(STALE_SWEEP_INTERVAL_SECONDS)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = asyncio.create_task(_stale_session_sweep_loop())
+    yield
+    task.cancel()
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,22 +54,11 @@ app.add_middleware(
 )
 
 
-def _regenerate_embeddings():
-    """Re-run embeder.py as a subprocess so its (untouched) full-recompute
-    logic picks up newly inserted questions, then reload retrieve.py's
-    module-level caches (vectors/ids/questions) so /ask sees fresh data
-    without restarting the server.
-    """
-    result = subprocess.run(
-        [sys.executable, "embeder.py"],
-        cwd=BASE_DIR,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr[-2000:] or "embeder.py failed")
-
-    importlib.reload(retrieve_module)
+def _delete_session_data(session_id: str):
+    exam_ids = db.get_exam_ids_by_session(session_id)
+    removed_question_ids = db.delete_exams(exam_ids)
+    retrieve_module.remove_questions(removed_question_ids)
+    return {"exams_removed": len(exam_ids), "questions_removed": len(removed_question_ids)}
 
 
 def _enrich_results(results):
@@ -101,12 +115,17 @@ def get_stats():
 
 
 @app.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(file: UploadFile = File(...), session_id: str | None = Form(None)):
     if not (file.filename or "").lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail={
             "error": "invalid_file_type",
             "message": "Only PDF files are supported.",
         })
+
+    # Every upload gets tied to a session, so it's always eligible for
+    # cleanup - never falls through as indistinguishable from baseline data
+    # just because the frontend failed to send one.
+    session_id = session_id or str(uuid.uuid4())
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(await file.read())
@@ -124,7 +143,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         Path(tmp_path).unlink(missing_ok=True)
 
     response_papers = []
-    any_inserted = False
+    newly_inserted = []
 
     for paper in papers:
         if paper.get("parse_failed"):
@@ -139,8 +158,7 @@ async def upload_pdf(file: UploadFile = File(...)):
             continue
 
         subject, month, year = seed.extract_metadata(paper["header_text"])
-        exam_id = db.insert_exam(subject, month, year)
-        any_inserted = True
+        exam_id = db.insert_exam(subject, month, year, session_id=session_id)
 
         questions_out = []
         for question_number, question_text, marks in paper["questions"]:
@@ -151,6 +169,7 @@ async def upload_pdf(file: UploadFile = File(...)):
                 "question_text": question_text,
                 "marks": marks,
             })
+            newly_inserted.append({"question_id": question_id, "question_text": question_text})
 
         flags = []
         if month is None or year is None:
@@ -165,16 +184,35 @@ async def upload_pdf(file: UploadFile = File(...)):
             "flags": flags,
         })
 
-    if any_inserted:
+    if newly_inserted:
         try:
-            _regenerate_embeddings()
-        except RuntimeError as e:
+            # In-process: reuses the same model singleton retrieve() already
+            # caches, and only encodes the new questions from this upload -
+            # not a subprocess (which loaded a second full model copy and
+            # caused the upload-time OOM) and not a full recompute of every
+            # question in the database.
+            retrieve_module.add_questions(newly_inserted)
+        except Exception as e:
             raise HTTPException(status_code=500, detail={
-                "error": "embedding_regeneration_failed",
+                "error": "embedding_generation_failed",
                 "message": str(e),
             })
 
-    return {"papers": response_papers}
+    return {"papers": response_papers, "session_id": session_id}
+
+
+@app.post("/session/{session_id}/end")
+def end_session(session_id: str):
+    """sendBeacon can only issue POST, so this is the endpoint the frontend
+    actually calls on pagehide. See also DELETE /session/{session_id} below
+    for programmatic/manual use.
+    """
+    return _delete_session_data(session_id)
+
+
+@app.delete("/session/{session_id}")
+def delete_session(session_id: str):
+    return _delete_session_data(session_id)
 
 
 class AskRequest(BaseModel):

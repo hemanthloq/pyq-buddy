@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import './App.css';
-import { getStats } from './api';
+import { endSession, getStats } from './api';
+import { getSessionId } from './session';
 import SearchScreen from './components/SearchScreen';
 import ThemeToggle from './components/ThemeToggle';
 import UploadScreen from './components/UploadScreen';
@@ -42,6 +43,13 @@ export default function App() {
   useEffect(() => {
     refreshStats();
   }, [refreshStats]);
+
+  useEffect(() => {
+    const sessionId = getSessionId();
+    const handlePageHide = () => endSession(sessionId);
+    window.addEventListener('pagehide', handlePageHide);
+    return () => window.removeEventListener('pagehide', handlePageHide);
+  }, []);
 
   return (
     <div className="app-shell">

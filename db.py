@@ -14,12 +14,15 @@ def _get_conn() -> sqlite3.Connection:
 # Insert helpers
 # ------------------------------------------------------------------
 
-def insert_exam(subject: str, month: str | None, year: int | None) -> int:
+def insert_exam(subject: str, month: str | None, year: int | None, session_id: str | None = None) -> int:
     """Add a new exam record and return its auto-generated exam_id.
 
     Args:
-        subject: Name of the subject (e.g. "DBMS").
-        term:    Exam term/semester string (e.g. "Winter 2024").
+        subject:    Name of the subject (e.g. "DBMS").
+        month:      Month the exam was held, if extractable.
+        year:       Year the exam was held, if extractable.
+        session_id: Browser session that uploaded this exam, or None for
+                    baseline/seeded data that should never be auto-deleted.
 
     Returns:
         The integer primary key of the newly inserted row.
@@ -28,8 +31,8 @@ def insert_exam(subject: str, month: str | None, year: int | None) -> int:
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO Exams (subject, month, year) VALUES (?, ?, ?)",
-            (subject, month, year)
+            "INSERT INTO Exams (subject, month, year, session_id) VALUES (?, ?, ?, ?)",
+            (subject, month, year, session_id)
         )
         conn.commit()
         return cursor.lastrowid
@@ -175,5 +178,88 @@ def get_or_create_topic(name: str) -> int:
         else:
             topic_id = insert_topic(name)
             return topic_id
+    finally:
+        conn.close()
+
+
+# ------------------------------------------------------------------
+# Session cleanup helpers
+#
+# session_id is NULL for baseline/seeded exams, and a client-generated
+# string for anything inserted via a live /upload call. Every query below
+# filters on session_id explicitly (never a bare "delete everything"), so
+# baseline data - which never has a session_id - can't be matched by either
+# the exam of these two cleanup entry points, even if session_id lookup
+# logic is bugged: NULL never equals a passed-in string in SQL.
+# ------------------------------------------------------------------
+
+def get_exam_ids_by_session(session_id: str) -> list:
+    """Return exam_ids uploaded under a given browser session."""
+    conn = _get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT exam_id FROM Exams WHERE session_id = ?",
+            (session_id,)
+        ).fetchall()
+        return [row["exam_id"] for row in rows]
+    finally:
+        conn.close()
+
+
+def get_stale_session_exam_ids(older_than_minutes: int) -> list:
+    """Return exam_ids belonging to a session, uploaded more than
+    older_than_minutes ago. Baseline exams (session_id IS NULL) are
+    excluded by the WHERE clause, not just by convention.
+    """
+    conn = _get_conn()
+    try:
+        rows = conn.execute(
+            """
+            SELECT exam_id FROM Exams
+            WHERE session_id IS NOT NULL
+              AND datetime(created_at) < datetime('now', ? || ' minutes')
+            """,
+            (f"-{older_than_minutes}",)
+        ).fetchall()
+        return [row["exam_id"] for row in rows]
+    finally:
+        conn.close()
+
+
+def delete_exams(exam_ids: list) -> list:
+    """Delete the given exams and their questions (cascading manually -
+    SQLite FKs aren't enforced here by default). Returns the question_ids
+    that were removed, so the caller can sync the in-memory vector store.
+
+    Refuses to do anything if exam_ids is empty, so an accidental empty
+    list can never turn into a mistaken bulk operation.
+    """
+    if not exam_ids:
+        return []
+
+    conn = _get_conn()
+    try:
+        placeholders = ",".join("?" * len(exam_ids))
+        question_ids = [
+            row["question_id"] for row in conn.execute(
+                f"SELECT question_id FROM Questions WHERE exam_id IN ({placeholders})",
+                exam_ids,
+            ).fetchall()
+        ]
+
+        if question_ids:
+            qplaceholders = ",".join("?" * len(question_ids))
+            conn.execute(
+                f"DELETE FROM QuestionTopics WHERE question_id IN ({qplaceholders})",
+                question_ids,
+            )
+            conn.execute(
+                f"DELETE FROM Questions WHERE question_id IN ({qplaceholders})",
+                question_ids,
+            )
+
+        conn.execute(f"DELETE FROM Exams WHERE exam_id IN ({placeholders})", exam_ids)
+        conn.commit()
+        return question_ids
     finally:
         conn.close()
