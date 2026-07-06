@@ -1,6 +1,6 @@
 CREATE TABLE Exams(
    exam_id INTEGER PRIMARY KEY AUTOINCREMENT,
-   subject TEXT NOT NULL,
+   subject TEXT,
    month TEXT,
    year INTEGER,
    session_id TEXT,

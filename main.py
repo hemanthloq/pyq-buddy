@@ -208,6 +208,8 @@ async def upload_pdf(file: UploadFile = File(...), session_id: str | None = Form
         flags = []
         if month is None or year is None:
             flags.append("month_year_unknown")
+        if subject is None:
+            flags.append("subject_unknown")
 
         response_papers.append({
             "exam_id": exam_id,
@@ -295,9 +297,15 @@ def ask(payload: AskRequest):
     except GroqConfigError as e:
         summary = None
         summary_error = {"error": "groq_key_missing", "message": str(e)}
+        # Logged, not just returned in summary_error: the frontend only ever
+        # shows a generic "summary unavailable" note, so without this the
+        # real reason (missing key vs. Groq-side failure) is a dead end -
+        # this was itself the reported bug.
+        print(f"/ask summary generation failed for query {query!r} (groq_key_missing): {e}")
     except Exception as e:
         summary = None
         summary_error = {"error": "summary_failed", "message": str(e)}
+        print(f"/ask summary generation failed for query {query!r} ({type(e).__name__}): {e}")
 
     return {"results": results, "summary": summary, "summary_error": summary_error}
 

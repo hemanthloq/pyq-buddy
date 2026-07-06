@@ -14,11 +14,16 @@ def _get_conn() -> sqlite3.Connection:
 # Insert helpers
 # ------------------------------------------------------------------
 
-def insert_exam(subject: str, month: str | None, year: int | None, session_id: str | None = None) -> int:
+def insert_exam(subject: str | None, month: str | None, year: int | None, session_id: str | None = None) -> int:
     """Add a new exam record and return its auto-generated exam_id.
 
     Args:
-        subject:    Name of the subject (e.g. "DBMS").
+        subject:    Name of the subject (e.g. "DBMS"), if extractable. The
+                    extraction regex is tuned for one header format and
+                    doesn't match everything, so this is nullable the same
+                    way month/year already are - a paper from an
+                    unrecognized institution/layout shouldn't crash the
+                    upload just because we can't label its subject.
         month:      Month the exam was held, if extractable.
         year:       Year the exam was held, if extractable.
         session_id: Browser session that uploaded this exam, or None for
