@@ -1,7 +1,11 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Relative paths: in production, FastAPI serves both the built frontend and
+// the API from one origin (HF Spaces exposes a single port), so there's no
+// separate API host to point at anymore. In local dev, Vite's dev server
+// proxies these same paths to the backend (see vite.config.js) so this
+// works unchanged in both environments.
 
 export async function getSessionScope(sessionId) {
-  const res = await fetch(`${API_BASE}/session/${sessionId}/scope`);
+  const res = await fetch(`/session/${sessionId}/scope`);
   if (!res.ok) throw new Error('Failed to load session status.');
   return res.json();
 }
@@ -10,7 +14,7 @@ export async function uploadPdf(file, sessionId) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('session_id', sessionId);
-  const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+  const res = await fetch('/upload', { method: 'POST', body: formData });
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     throw new Error(data?.detail?.message || 'Upload failed.');
@@ -19,7 +23,7 @@ export async function uploadPdf(file, sessionId) {
 }
 
 export async function useSample(sessionId) {
-  const res = await fetch(`${API_BASE}/session/${sessionId}/use-sample`, { method: 'POST' });
+  const res = await fetch(`/session/${sessionId}/use-sample`, { method: 'POST' });
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     throw new Error(data?.detail?.message || 'Could not load the sample paper.');
@@ -32,11 +36,11 @@ export async function useSample(sessionId) {
 // for manual/programmatic use). No body needed; session_id is in the URL.
 export function endSession(sessionId) {
   if (!sessionId) return;
-  navigator.sendBeacon(`${API_BASE}/session/${sessionId}/end`);
+  navigator.sendBeacon(`/session/${sessionId}/end`);
 }
 
 export async function ask(query, sessionId, k = 5) {
-  const res = await fetch(`${API_BASE}/ask`, {
+  const res = await fetch('/ask', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, k, session_id: sessionId }),

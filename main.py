@@ -1,12 +1,11 @@
 import asyncio
-import os
 import tempfile
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import db
@@ -15,8 +14,6 @@ import retrieve as retrieve_module
 import seed
 from groq_client import GroqConfigError
 from summarize import generate_summary
-
-ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "http://localhost:5173")
 
 STALE_SESSION_MINUTES = 60
 STALE_SWEEP_INTERVAL_SECONDS = 600  # 10 minutes
@@ -58,12 +55,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[ALLOWED_ORIGIN],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# No CORS middleware: frontend and backend are served from the same origin
+# in production (this process serves both, see the StaticFiles mount at the
+# bottom of this file), and in local dev the Vite dev server proxies API
+# paths to this backend (see frontend/vite.config.js) - the browser never
+# makes a cross-origin request to this API in either case.
 
 
 def _enrich_results(results):
@@ -281,3 +277,14 @@ def ask(payload: AskRequest):
         summary_error = {"error": "summary_failed", "message": str(e)}
 
     return {"results": results, "summary": summary, "summary_error": summary_error}
+
+
+# Serves the built React app (frontend/dist). Mounted at "/" LAST, after
+# every API route above - Starlette matches routes in registration order,
+# so the specific API paths above always win first and this only catches
+# whatever they didn't. Only mounted if the build actually exists: locally,
+# most people run the Vite dev server separately and never build dist, and
+# StaticFiles raises at import time if its directory is missing.
+FRONTEND_DIST = Path(__file__).parent / "frontend" / "dist"
+if FRONTEND_DIST.is_dir():
+    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")

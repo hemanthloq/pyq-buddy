@@ -1,0 +1,8 @@
+.git
+.env
+__pycache__/
+*.pyc
+*.pdf
+frontend/node_modules
+frontend/dist
+tempCodeRunnerFile.py
