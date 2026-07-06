@@ -1,3 +1,11 @@
+---
+title: PYQ Buddy
+emoji: 📚
+colorFrom: purple
+colorTo: gray
+sdk: docker
+app_port: 7860
+---
 # PYQ Buddy
 
 Upload a past exam paper, and search across every question it contains by *meaning* — not just exact keywords. Ask something like "why do two processes corrupt shared data" and get back the real exam questions testing that idea, even if they're phrased completely differently.
