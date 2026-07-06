@@ -1,12 +1,17 @@
 # torch is intentionally NOT listed here - it's installed separately from
-# PyTorch's CPU-only wheel index (see render.yaml's buildCommand / README) to
-# avoid pulling the ~500MB CUDA-bundled default PyPI build. sentence-
-# transformers depends on torch but its version constraint is a loose range,
-# so it's satisfied by the already-installed CPU wheel without reinstalling.
+# PyTorch's CPU-only wheel index (see Dockerfile) to avoid pulling the
+# ~500MB CUDA-bundled default PyPI build. sentence-transformers depends on
+# torch but its version constraint is a loose range, so it's satisfied by
+# the already-installed CPU wheel without reinstalling.
 pdfplumber==0.11.10
 sentence-transformers==5.6.0
-numpy==2.5.0
-python-dotenv==1.2.1
+# numpy intentionally unpinned: it's a real direct dependency of our own
+# code (embeder.py, retrieve.py), but a hard == pin risks pointing at a
+# version with no published wheel for the actual deploy platform (exactly
+# what happened with 2.5.0 on linux/cp311 - see commit history). Let pip
+# resolve a version compatible with everything else in this file.
+numpy
+python-dotenv
 requests==2.32.5
 fastapi==0.138.0
 uvicorn==0.49.0
