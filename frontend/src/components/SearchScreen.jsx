@@ -1,51 +1,30 @@
-import { useState } from 'react';
-import { ask } from '../api';
 import ExampleChips from './ExampleChips';
 import GradeBadge from './GradeBadge';
 import UnderlineLoader from './UnderlineLoader';
 
 const LOW_CONFIDENCE_THRESHOLD = 0.25;
 
-export default function SearchScreen({ hasData, onGoUpload }) {
-  const [input, setInput] = useState('');
-  const [activeQuery, setActiveQuery] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState(null);
-  const [summary, setSummary] = useState(null);
-  const [summaryError, setSummaryError] = useState(null);
-  const [error, setError] = useState(null);
-
-  const runSearch = async (rawQuery) => {
-    const query = rawQuery.trim();
-    if (!query || loading) return;
-
-    setActiveQuery(query);
-    setLoading(true);
-    setError(null);
-    setSummary(null);
-    setSummaryError(null);
-    setResults(null);
-
-    try {
-      const data = await ask(query, 5);
-      setResults(data.results);
-      setSummary(data.summary);
-      setSummaryError(data.summary_error);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+export default function SearchScreen({
+  hasData,
+  onGoUpload,
+  input,
+  onInputChange,
+  onSubmit,
+  activeQuery,
+  loading,
+  results,
+  summary,
+  summaryError,
+  error,
+}) {
   const handleSubmit = (e) => {
     e.preventDefault();
-    runSearch(input);
+    onSubmit(input);
   };
 
   const handleChipPick = (example) => {
-    setInput(example);
-    runSearch(example);
+    onInputChange(example);
+    onSubmit(example);
   };
 
   if (hasData === null) {
@@ -77,7 +56,7 @@ export default function SearchScreen({ hasData, onGoUpload }) {
           className="search-input"
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => onInputChange(e.target.value)}
           placeholder="Ask it your way — we'll find where it's been asked before"
           aria-label="Search past exam questions"
         />

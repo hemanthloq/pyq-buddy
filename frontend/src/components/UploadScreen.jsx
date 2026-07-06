@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { uploadPdf } from '../api';
+import { uploadPdf, useSample } from '../api';
 import { getSessionId } from '../session';
 
-export default function UploadScreen({ onUploaded }) {
+export default function UploadScreen({ onUploadSuccess }) {
   const [uploading, setUploading] = useState(false);
   const [papers, setPapers] = useState(null);
   const [error, setError] = useState(null);
@@ -18,7 +18,24 @@ export default function UploadScreen({ onUploaded }) {
     try {
       const data = await uploadPdf(file, getSessionId());
       setPapers(data.papers);
-      onUploaded?.();
+      const anySucceeded = data.papers.some((p) => !p.flags.includes('format_not_detected'));
+      if (anySucceeded) {
+        onUploadSuccess?.();
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleUseSample = async () => {
+    setUploading(true);
+    setError(null);
+
+    try {
+      await useSample(getSessionId());
+      onUploadSuccess?.();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -45,6 +62,13 @@ export default function UploadScreen({ onUploaded }) {
         <span className="file-drop-label">{fileName || 'No file chosen'}</span>
         <span className="btn-secondary">Browse</span>
       </label>
+
+      <p className="sample-prompt">
+        Want to try it first?{' '}
+        <button type="button" className="sample-link" onClick={handleUseSample}>
+          Use this sample paper
+        </button>
+      </p>
 
       {uploading && <p className="upload-status">Extracting questions…</p>}
       {error && <p className="error-note">{error}</p>}

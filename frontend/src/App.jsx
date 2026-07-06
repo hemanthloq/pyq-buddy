@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import './App.css';
-import { endSession, getStats } from './api';
+import { ask, endSession, getSessionScope } from './api';
 import { getSessionId } from './session';
 import SearchScreen from './components/SearchScreen';
 import ThemeToggle from './components/ThemeToggle';
@@ -31,18 +31,28 @@ function useTheme() {
 
 export default function App() {
   const [theme, toggleTheme] = useTheme();
-  const [tab, setTab] = useState('search');
-  const [stats, setStats] = useState(null);
+  const [tab, setTab] = useState('upload');
+  const [scope, setScope] = useState(null);
 
-  const refreshStats = useCallback(() => {
-    getStats()
-      .then(setStats)
-      .catch(() => setStats({ exam_count: 0, question_count: 0 }));
+  // Search state lives here, not inside SearchScreen, so switching to the
+  // Upload tab and back doesn't unmount-and-lose the previous query/results.
+  const [searchInput, setSearchInput] = useState('');
+  const [activeQuery, setActiveQuery] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [summaryError, setSummaryError] = useState(null);
+  const [searchError, setSearchError] = useState(null);
+
+  const refreshScope = useCallback(() => {
+    getSessionScope(getSessionId())
+      .then(setScope)
+      .catch(() => setScope({ exam_ids: [], question_count: 0 }));
   }, []);
 
   useEffect(() => {
-    refreshStats();
-  }, [refreshStats]);
+    refreshScope();
+  }, [refreshScope]);
 
   useEffect(() => {
     const sessionId = getSessionId();
@@ -51,6 +61,37 @@ export default function App() {
     return () => window.removeEventListener('pagehide', handlePageHide);
   }, []);
 
+  const runSearch = useCallback(
+    async (rawQuery) => {
+      const query = rawQuery.trim();
+      if (!query || searchLoading) return;
+
+      setActiveQuery(query);
+      setSearchLoading(true);
+      setSearchError(null);
+      setSummary(null);
+      setSummaryError(null);
+      setSearchResults(null);
+
+      try {
+        const data = await ask(query, getSessionId(), 5);
+        setSearchResults(data.results);
+        setSummary(data.summary);
+        setSummaryError(data.summary_error);
+      } catch (e) {
+        setSearchError(e.message);
+      } finally {
+        setSearchLoading(false);
+      }
+    },
+    [searchLoading]
+  );
+
+  const handleUploadSuccess = useCallback(() => {
+    refreshScope();
+    setTab('search');
+  }, [refreshScope]);
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -58,17 +99,17 @@ export default function App() {
         <nav className="app-nav" aria-label="Screens">
           <button
             type="button"
-            className={tab === 'search' ? 'nav-btn active' : 'nav-btn'}
-            onClick={() => setTab('search')}
-          >
-            Search
-          </button>
-          <button
-            type="button"
             className={tab === 'upload' ? 'nav-btn active' : 'nav-btn'}
             onClick={() => setTab('upload')}
           >
             Upload
+          </button>
+          <button
+            type="button"
+            className={tab === 'search' ? 'nav-btn active' : 'nav-btn'}
+            onClick={() => setTab('search')}
+          >
+            Search
           </button>
         </nav>
         <ThemeToggle theme={theme} onToggle={toggleTheme} />
@@ -77,11 +118,20 @@ export default function App() {
       <main className="app-main">
         {tab === 'search' ? (
           <SearchScreen
-            hasData={stats ? stats.question_count > 0 : null}
+            hasData={scope ? scope.question_count > 0 : null}
             onGoUpload={() => setTab('upload')}
+            input={searchInput}
+            onInputChange={setSearchInput}
+            onSubmit={runSearch}
+            activeQuery={activeQuery}
+            loading={searchLoading}
+            results={searchResults}
+            summary={summary}
+            summaryError={summaryError}
+            error={searchError}
           />
         ) : (
-          <UploadScreen onUploaded={refreshStats} />
+          <UploadScreen onUploadSuccess={handleUploadSuccess} />
         )}
       </main>
     </div>

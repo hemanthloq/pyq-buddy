@@ -206,22 +206,106 @@ def get_exam_ids_by_session(session_id: str) -> list:
         conn.close()
 
 
-def get_stale_session_exam_ids(older_than_minutes: int) -> list:
-    """Return exam_ids belonging to a session, uploaded more than
-    older_than_minutes ago. Baseline exams (session_id IS NULL) are
-    excluded by the WHERE clause, not just by convention.
+def get_stale_session_ids(older_than_minutes: int) -> list:
+    """Return session_ids that have gone quiet for more than
+    older_than_minutes - checking BOTH sessions that own uploaded exams
+    (Exams.session_id/created_at) AND sessions that only ever pointed at
+    shared data like the sample (SessionScope.created_at), since a
+    sample-only session owns no exam and wouldn't show up in the first check.
+    Baseline exams (session_id IS NULL) can't appear via either path.
     """
     conn = _get_conn()
     try:
-        rows = conn.execute(
+        threshold = (f"-{older_than_minutes}",)
+        by_owned_exam = conn.execute(
             """
-            SELECT exam_id FROM Exams
+            SELECT DISTINCT session_id FROM Exams
             WHERE session_id IS NOT NULL
               AND datetime(created_at) < datetime('now', ? || ' minutes')
             """,
-            (f"-{older_than_minutes}",)
+            threshold,
+        ).fetchall()
+        by_scope = conn.execute(
+            """
+            SELECT DISTINCT session_id FROM SessionScope
+            WHERE datetime(created_at) < datetime('now', ? || ' minutes')
+            """,
+            threshold,
+        ).fetchall()
+        ids = {row["session_id"] for row in by_owned_exam} | {row["session_id"] for row in by_scope}
+        return list(ids)
+    finally:
+        conn.close()
+
+
+def get_baseline_exam_ids() -> list:
+    """Return exam_ids for baseline/seeded data (never owned by a session)."""
+    conn = _get_conn()
+    try:
+        rows = conn.execute("SELECT exam_id FROM Exams WHERE session_id IS NULL").fetchall()
+        return [row["exam_id"] for row in rows]
+    finally:
+        conn.close()
+
+
+def add_session_scope(session_id: str, exam_ids: list) -> None:
+    """Make the given exam_ids searchable by this session. Used both for a
+    real upload's own new exam(s) and for "try the sample" pointing at the
+    existing baseline exam(s) - the latter without touching Exams.session_id,
+    so baseline ownership/deletability is unaffected.
+    """
+    if not exam_ids:
+        return
+
+    conn = _get_conn()
+    try:
+        conn.executemany(
+            "INSERT OR IGNORE INTO SessionScope (session_id, exam_id) VALUES (?, ?)",
+            [(session_id, exam_id) for exam_id in exam_ids],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_session_scope_exam_ids(session_id: str) -> list:
+    """Return the exam_ids this session is allowed to search."""
+    conn = _get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT exam_id FROM SessionScope WHERE session_id = ?",
+            (session_id,)
         ).fetchall()
         return [row["exam_id"] for row in rows]
+    finally:
+        conn.close()
+
+
+def count_questions_for_exams(exam_ids: list) -> int:
+    """Count of Questions belonging to any of the given exam_ids."""
+    if not exam_ids:
+        return 0
+
+    conn = _get_conn()
+    try:
+        placeholders = ",".join("?" * len(exam_ids))
+        return conn.execute(
+            f"SELECT COUNT(*) FROM Questions WHERE exam_id IN ({placeholders})",
+            exam_ids,
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+
+def delete_session_scope(session_id: str) -> None:
+    """Remove a session's scope entries. Only ever removes SessionScope rows
+    (pure visibility pointers) - never touches Exams/Questions, so this is
+    always safe to call regardless of what the session pointed at.
+    """
+    conn = _get_conn()
+    try:
+        conn.execute("DELETE FROM SessionScope WHERE session_id = ?", (session_id,))
+        conn.commit()
     finally:
         conn.close()
 

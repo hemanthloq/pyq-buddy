@@ -22,6 +22,19 @@ STALE_SESSION_MINUTES = 60
 STALE_SWEEP_INTERVAL_SECONDS = 600  # 10 minutes
 
 
+def _delete_session_data(session_id: str):
+    """Full teardown for one browser session: remove any exam(s) it owns
+    (real uploads) plus its scope pointers (including any pointing at
+    shared/baseline data via "use sample" - deleting those pointers never
+    touches Exams/Questions, so baseline is unaffected either way).
+    """
+    exam_ids = db.get_exam_ids_by_session(session_id)
+    removed_question_ids = db.delete_exams(exam_ids)
+    retrieve_module.remove_questions(removed_question_ids)
+    db.delete_session_scope(session_id)
+    return {"exams_removed": len(exam_ids), "questions_removed": len(removed_question_ids)}
+
+
 async def _stale_session_sweep_loop():
     """Backup cleanup for sessions whose sendBeacon never fired (hard crash,
     task-killed tab, etc). Checks immediately on startup, then periodically.
@@ -29,9 +42,8 @@ async def _stale_session_sweep_loop():
     """
     while True:
         try:
-            exam_ids = db.get_stale_session_exam_ids(STALE_SESSION_MINUTES)
-            removed_question_ids = db.delete_exams(exam_ids)
-            retrieve_module.remove_questions(removed_question_ids)
+            for session_id in db.get_stale_session_ids(STALE_SESSION_MINUTES):
+                _delete_session_data(session_id)
         except Exception as e:
             print(f"stale session sweep failed: {e}")
         await asyncio.sleep(STALE_SWEEP_INTERVAL_SECONDS)
@@ -52,13 +64,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-def _delete_session_data(session_id: str):
-    exam_ids = db.get_exam_ids_by_session(session_id)
-    removed_question_ids = db.delete_exams(exam_ids)
-    retrieve_module.remove_questions(removed_question_ids)
-    return {"exams_removed": len(exam_ids), "questions_removed": len(removed_question_ids)}
 
 
 def _enrich_results(results):
@@ -114,6 +119,28 @@ def get_stats():
     return {"exam_count": exam_count, "question_count": question_count}
 
 
+@app.get("/session/{session_id}/scope")
+def get_session_scope(session_id: str):
+    """What this session can currently search - used by the frontend to
+    decide whether to show the search UI or the 'go upload' empty state,
+    since that's now per-session, not a global fact about the database.
+    """
+    exam_ids = db.get_session_scope_exam_ids(session_id)
+    question_count = db.count_questions_for_exams(exam_ids)
+    return {"exam_ids": exam_ids, "question_count": question_count}
+
+
+@app.post("/session/{session_id}/use-sample")
+def use_sample(session_id: str):
+    """Point a session at the existing baseline exam(s) without reprocessing
+    anything - same searchable outcome as a real upload, no new data.
+    """
+    baseline_exam_ids = db.get_baseline_exam_ids()
+    db.add_session_scope(session_id, baseline_exam_ids)
+    question_count = db.count_questions_for_exams(baseline_exam_ids)
+    return {"exam_ids": baseline_exam_ids, "question_count": question_count}
+
+
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...), session_id: str | None = Form(None)):
     if not (file.filename or "").lower().endswith(".pdf"):
@@ -144,6 +171,7 @@ async def upload_pdf(file: UploadFile = File(...), session_id: str | None = Form
 
     response_papers = []
     newly_inserted = []
+    new_exam_ids = []
 
     for paper in papers:
         if paper.get("parse_failed"):
@@ -159,6 +187,7 @@ async def upload_pdf(file: UploadFile = File(...), session_id: str | None = Form
 
         subject, month, year = seed.extract_metadata(paper["header_text"])
         exam_id = db.insert_exam(subject, month, year, session_id=session_id)
+        new_exam_ids.append(exam_id)
 
         questions_out = []
         for question_number, question_text, marks in paper["questions"]:
@@ -169,7 +198,11 @@ async def upload_pdf(file: UploadFile = File(...), session_id: str | None = Form
                 "question_text": question_text,
                 "marks": marks,
             })
-            newly_inserted.append({"question_id": question_id, "question_text": question_text})
+            newly_inserted.append({
+                "question_id": question_id,
+                "question_text": question_text,
+                "exam_id": exam_id,
+            })
 
         flags = []
         if month is None or year is None:
@@ -198,6 +231,9 @@ async def upload_pdf(file: UploadFile = File(...), session_id: str | None = Form
                 "message": str(e),
             })
 
+    if new_exam_ids:
+        db.add_session_scope(session_id, new_exam_ids)
+
     return {"papers": response_papers, "session_id": session_id}
 
 
@@ -218,6 +254,7 @@ def delete_session(session_id: str):
 class AskRequest(BaseModel):
     query: str
     k: int = 5
+    session_id: str
 
 
 @app.post("/ask")
@@ -230,7 +267,8 @@ def ask(payload: AskRequest):
         })
 
     k = max(1, min(payload.k, 20))
-    results = _enrich_results(retrieve_module.retrieve(query, k))
+    allowed_exam_ids = db.get_session_scope_exam_ids(payload.session_id)
+    results = _enrich_results(retrieve_module.retrieve(query, k, allowed_exam_ids=allowed_exam_ids))
 
     try:
         summary = generate_summary(query, results)
