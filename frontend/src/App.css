@@ -175,54 +175,84 @@
 }
 
 /* ------------------------------------------------------------------
-   Underline loader
+   Chalk loader - a chalk stick "writing" the current loading phrase
+   left-to-right, cycling through a phrase list. Used for both the search
+   summary wait and the upload/extraction wait (same component, different
+   phrases passed in).
 ------------------------------------------------------------------ */
 
-.underline-loader-wrap {
+.chalk-loader {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   margin-top: 28px;
   font-size: 15px;
   color: var(--text-muted);
+  min-height: 24px;
 }
 
-.underline-loader {
-  position: relative;
-  display: inline-block;
-  padding-bottom: 6px;
+.chalk-loader-ghost {
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
 }
 
-.underline-loader::after {
-  content: '';
+.chalk-loader-reveal {
   position: absolute;
   left: 0;
+  top: 0;
   bottom: 0;
-  width: 100%;
-  height: 2px;
-  background-image: repeating-linear-gradient(
-    to right,
-    var(--accent) 0 7px,
-    transparent 7px 14px
-  );
-  background-repeat: repeat-x;
-  clip-path: inset(0 100% 0 0);
-  animation: underline-sweep 2.1s ease-in-out infinite;
+  width: 0;
+  overflow: hidden;
+  white-space: pre;
+  display: flex;
+  align-items: center;
+  animation: chalk-write 1.6s ease-out forwards;
 }
 
-@keyframes underline-sweep {
+.chalk-loader-text {
+  white-space: pre;
+}
+
+.chalk-loader-icon {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  width: 24px;
+  height: 11px;
+  flex-shrink: 0;
+  transform: translate(-8px, -60%);
+}
+
+.chalk-loader-chalk-body {
+  fill: var(--accent);
+  opacity: 0.75;
+}
+
+.chalk-loader-chalk-tip {
+  fill: var(--accent);
+}
+
+@keyframes chalk-write {
   0% {
-    clip-path: inset(0 100% 0 0);
+    width: 0;
   }
-  50% {
-    clip-path: inset(0 0 0 0);
+  75% {
+    width: 100%;
   }
   100% {
-    clip-path: inset(0 0 0 100%);
+    width: 100%;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .underline-loader::after {
+  .chalk-loader-reveal {
     animation: none;
-    clip-path: inset(0 0 0 0);
+    width: 100%;
+  }
+
+  .chalk-loader-icon {
+    display: none;
   }
 }
 
@@ -413,12 +443,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.upload-status {
-  margin-top: 14px;
-  font-size: 14px;
-  color: var(--text-muted);
 }
 
 .sample-prompt {

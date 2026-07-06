@@ -1,8 +1,17 @@
+import ChalkLoader from './ChalkLoader';
 import ExampleChips from './ExampleChips';
 import GradeBadge from './GradeBadge';
-import UnderlineLoader from './UnderlineLoader';
 
 const LOW_CONFIDENCE_THRESHOLD = 0.25;
+
+const SEARCH_LOADING_PHRASES = [
+  'Chalking up an answer…',
+  'Digging through old papers…',
+  'Sharpening our pencils…',
+  'Consulting the syllabus…',
+  'Flipping through past papers…',
+  'Erasing the wrong turns…',
+];
 
 export default function SearchScreen({
   hasData,
@@ -67,7 +76,7 @@ export default function SearchScreen({
 
       {!hasSearched && <ExampleChips onPick={handleChipPick} />}
 
-      {loading && <UnderlineLoader query={activeQuery} />}
+      {loading && <ChalkLoader phrases={SEARCH_LOADING_PHRASES} />}
 
       {error && <p className="error-note">{error}</p>}
 

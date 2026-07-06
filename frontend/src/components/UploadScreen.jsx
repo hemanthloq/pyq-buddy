@@ -1,6 +1,16 @@
 import { useState } from 'react';
 import { uploadPdf, useSample } from '../api';
 import { getSessionId } from '../session';
+import ChalkLoader from './ChalkLoader';
+
+const EXTRACTION_LOADING_PHRASES = [
+  'Flipping through the pages…',
+  'Circling every question…',
+  'Counting up the marks…',
+  'Sorting into piles…',
+  'Reading between the lines…',
+  'Cross-checking the total…',
+];
 
 export default function UploadScreen({ onUploadSuccess }) {
   const [uploading, setUploading] = useState(false);
@@ -70,7 +80,7 @@ export default function UploadScreen({ onUploadSuccess }) {
         </button>
       </p>
 
-      {uploading && <p className="upload-status">Extracting questions…</p>}
+      {uploading && <ChalkLoader phrases={EXTRACTION_LOADING_PHRASES} />}
       {error && <p className="error-note">{error}</p>}
 
       {papers && (
